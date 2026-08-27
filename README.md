@@ -26,8 +26,10 @@ Run `dev/build` after installing so the WebP assessment columns are added to
    sake tasks:WebpConversionTask --assess --limit=10
    ```
 
-2. Open **Reports → PNG files worth converting to WebP** in the CMS.
-3. Preview PNG vs WebP, then use **Replace with WebP** on candidates you want
+2. Open **Reports → Image conversion report** in the CMS.
+3. Use **Queue assessment** to process files in the background, or filter to
+   **Not yet assessed** and assess files one at a time.
+4. Preview PNG vs WebP, then use **Replace with WebP** on candidates you want
    to swap. The `File` record ID is preserved so existing relations follow.
 
 ## Configuration

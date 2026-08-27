@@ -6,12 +6,14 @@ namespace Akqa\SilverStripe\ImageOptimiser\Reports;
 
 use Akqa\SilverStripe\ImageOptimiser\Extensions\WebpConversionExtension;
 use Akqa\SilverStripe\ImageOptimiser\Forms\GridField\GridFieldWebpConvertAction;
+use Akqa\SilverStripe\ImageOptimiser\Forms\GridField\GridFieldWebpQueueAction;
 use Akqa\SilverStripe\ImageOptimiser\Services\WebpConversionService;
 use SilverStripe\Assets\File;
 use SilverStripe\Core\Convert;
 use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\GridField\GridField;
+use SilverStripe\Forms\GridField\GridFieldButtonRow;
 use SilverStripe\Forms\GridField\GridFieldConfig;
 use SilverStripe\Forms\GridField\GridFieldDataColumns;
 use SilverStripe\Forms\GridField\GridFieldFooter;
@@ -22,19 +24,18 @@ use SilverStripe\Reports\Report;
 
 /**
  * Lists PNG files that have been trialled for WebP conversion, with the before
- * and after sizes and a link to preview each version. Files where WebP was no
- * smaller are marked Skipped by the assessment job and are shown only when
- * explicitly filtered for.
+ * and after sizes and a link to preview each version.
  *
- * The assessment itself is done by {@link \Akqa\SilverStripe\ImageOptimiser\Jobs\AssessWebpConversionsJob}.
+ * The assessment itself is done by {@link \Akqa\SilverStripe\ImageOptimiser\Jobs\AssessWebpConversionsJob},
+ * which can be queued from the report toolbar.
  */
 class WebpConversionReport extends Report
 {
-    protected $title = 'PNG files worth converting to WebP';
+    protected $title = 'Image conversion report';
 
-    protected $description = 'PNG images that would be meaningfully smaller as WebP. '
-        . 'Preview both versions, then replace the original in one click — the file keeps its ID, '
-        . 'so everything already pointing at it follows automatically.';
+    protected $description = 'Trial WebP conversions for PNG images, preview the saving, '
+        . 'then replace the original in one click — the file keeps its ID, so everything '
+        . 'already pointing at it follows automatically.';
 
     protected $dataClass = File::class;
 
@@ -57,7 +58,7 @@ class WebpConversionReport extends Report
 
 
     /**
-     * Let an editor switch between candidates, skipped files and failures.
+     * Let an editor switch between candidates, failures and unassessed files.
      */
     public function parameterFields(): FieldList
     {
@@ -67,8 +68,6 @@ class WebpConversionReport extends Report
                 'Status',
                 [
                     WebpConversionExtension::STATUS_CANDIDATE => 'Worth converting',
-                    WebpConversionExtension::STATUS_SKIPPED => 'Skipped (no worthwhile saving)',
-                    WebpConversionExtension::STATUS_CONVERTED => 'Already converted',
                     WebpConversionExtension::STATUS_FAILED => 'Failed to convert',
                     WebpConversionExtension::STATUS_UNCHECKED => 'Not yet assessed',
                 ],
@@ -96,7 +95,7 @@ class WebpConversionReport extends Report
         if ($status === WebpConversionExtension::STATUS_CANDIDATE) {
             $list = $list->sort('WebpSavingBytes', 'DESC');
         } else {
-            $list = $list->sort('WebpOriginalSize', 'DESC');
+            $list = $list->sort('Filename', 'ASC');
         }
 
         if ($sort) {
@@ -113,10 +112,15 @@ class WebpConversionReport extends Report
 
     /**
      * {@inheritdoc}
+     *
+     * Column set depends on the active status filter so we do not trigger
+     * trial conversions while listing unassessed files.
      */
     public function columns()
     {
-        return [
+        $status = $this->getSourceParams()['WebpStatus'] ?? WebpConversionExtension::STATUS_CANDIDATE;
+
+        $columns = [
             'Filename' => [
                 'title' => 'File',
                 'formatting' => function ($value, $item) {
@@ -127,30 +131,41 @@ class WebpConversionReport extends Report
                     );
                 },
             ],
-            'WebpOriginalSize' => [
-                'title' => 'Size before',
-                'formatting' => fn ($value) => File::format_size((int) $value),
-            ],
-            'WebpConvertedSize' => [
-                'title' => 'Size after',
-                'formatting' => fn ($value) => $value ? File::format_size((int) $value) : '—',
-            ],
-            'WebpSavingBytes' => [
-                'title' => 'Saving',
-                'formatting' => fn ($value, $item) => $item->getWebpSavingSummary(),
-            ],
-            'PngPreviewLink' => [
+        ];
+
+        if ($status === WebpConversionExtension::STATUS_UNCHECKED) {
+            return $columns;
+        }
+
+        $columns['WebpOriginalSize'] = [
+            'title' => 'Size before',
+            'formatting' => fn ($value) => File::format_size((int) $value),
+        ];
+        $columns['WebpConvertedSize'] = [
+            'title' => 'Size after',
+            'formatting' => fn ($value) => $value ? File::format_size((int) $value) : '—',
+        ];
+        $columns['WebpSavingBytes'] = [
+            'title' => 'Saving',
+            'formatting' => fn ($value, $item) => $item->getWebpSavingSummary(),
+        ];
+
+        if ($status === WebpConversionExtension::STATUS_CANDIDATE) {
+            $columns['PngPreviewLink'] = [
                 'title' => 'Preview PNG',
                 'formatting' => fn ($value) => $this->previewAnchor($value, 'View PNG'),
-            ],
-            'WebpPreviewLink' => [
+            ];
+            $columns['WebpPreviewLink'] = [
                 'title' => 'Preview WebP',
                 'formatting' => fn ($value) => $this->previewAnchor($value, 'View WebP'),
-            ],
-            'WebpNote' => [
-                'title' => 'Notes',
-            ],
+            ];
+        }
+
+        $columns['WebpNote'] = [
+            'title' => 'Notes',
         ];
+
+        return $columns;
     }
 
 
@@ -173,14 +188,16 @@ class WebpConversionReport extends Report
 
 
     /**
-     * Swap the stock report GridField for one that also carries the per-row
-     * convert button, and keep the raw HTML in the preview columns.
+     * Swap the stock report GridField for one that also carries the queue
+     * toolbar, per-row actions, and keeps the raw HTML in the preview columns.
      *
      * {@inheritdoc}
      */
     public function getReportField()
     {
         $config = GridFieldConfig::create()->addComponents(
+            GridFieldButtonRow::create('before'),
+            GridFieldWebpQueueAction::create(),
             GridFieldSortableHeader::create(),
             GridFieldDataColumns::create(),
             GridFieldWebpConvertAction::create(),

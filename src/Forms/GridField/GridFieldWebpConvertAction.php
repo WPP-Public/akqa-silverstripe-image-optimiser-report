@@ -15,12 +15,9 @@ use SilverStripe\Forms\GridField\GridField_ColumnProvider;
 use SilverStripe\Forms\GridField\GridField_FormAction;
 
 /**
- * Adds a single-click "Replace with WebP" button to each row of the
- * {@link \Akqa\SilverStripe\ImageOptimiser\Reports\WebpConversionReport}.
+ * Per-row actions for the image conversion report.
  *
- * The button only appears for files still marked as a candidate, so a file
- * cannot be converted twice, and rows that were deliberately skipped do not
- * offer an action.
+ * Candidates get "Replace with WebP"; unassessed files get "Assess".
  */
 class GridFieldWebpConvertAction extends AbstractGridFieldComponent implements
     GridField_ColumnProvider,
@@ -28,7 +25,9 @@ class GridFieldWebpConvertAction extends AbstractGridFieldComponent implements
 {
     private const COLUMN = 'WebpConvertAction';
 
-    private const ACTION = 'replacewithwebp';
+    private const ACTION_REPLACE = 'replacewithwebp';
+
+    private const ACTION_ASSESS = 'assesswebp';
 
     /**
      * {@inheritdoc}
@@ -76,7 +75,7 @@ class GridFieldWebpConvertAction extends AbstractGridFieldComponent implements
      */
     public function getActions($gridField)
     {
-        return [self::ACTION];
+        return [self::ACTION_REPLACE, self::ACTION_ASSESS];
     }
 
 
@@ -92,24 +91,41 @@ class GridFieldWebpConvertAction extends AbstractGridFieldComponent implements
             return null;
         }
 
-        if ($record->WebpStatus !== WebpConversionExtension::STATUS_CANDIDATE) {
-            return null;
+        if ($record->WebpStatus === WebpConversionExtension::STATUS_CANDIDATE) {
+            $title = sprintf('Replace with WebP (saves %s)', File::format_size($record->getWebpSaving()));
+
+            return GridField_FormAction::create(
+                $gridField,
+                'ReplaceWithWebp' . $record->ID,
+                'Replace with WebP',
+                self::ACTION_REPLACE,
+                ['RecordID' => $record->ID]
+            )
+                ->addExtraClass('btn btn-outline-primary btn-sm')
+                ->setDescription($title)
+                ->setAttribute('aria-label', $title)
+                ->Field()
+                ->forTemplate();
         }
 
-        $title = sprintf('Replace with WebP (saves %s)', File::format_size($record->getWebpSaving()));
+        if ($record->WebpStatus === WebpConversionExtension::STATUS_UNCHECKED) {
+            $title = sprintf('Assess %s for WebP conversion', $record->getFilename());
 
-        return GridField_FormAction::create(
-            $gridField,
-            'ReplaceWithWebp' . $record->ID,
-            'Replace with WebP',
-            self::ACTION,
-            ['RecordID' => $record->ID]
-        )
-            ->addExtraClass('btn btn-outline-primary btn-sm')
-            ->setDescription($title)
-            ->setAttribute('aria-label', $title)
-            ->Field()
-            ->forTemplate();
+            return GridField_FormAction::create(
+                $gridField,
+                'AssessWebp' . $record->ID,
+                'Assess',
+                self::ACTION_ASSESS,
+                ['RecordID' => $record->ID]
+            )
+                ->addExtraClass('btn btn-outline-secondary btn-sm')
+                ->setDescription($title)
+                ->setAttribute('aria-label', $title)
+                ->Field()
+                ->forTemplate();
+        }
+
+        return null;
     }
 
 
@@ -120,19 +136,25 @@ class GridFieldWebpConvertAction extends AbstractGridFieldComponent implements
      */
     public function handleAction(GridField $gridField, $actionName, $arguments, $data)
     {
-        if ($actionName !== self::ACTION) {
+        if ($actionName === self::ACTION_REPLACE) {
+            $this->handleReplace($gridField, $arguments);
+
             return;
         }
 
-        $file = File::get_by_id((int) $arguments['RecordID']);
-
-        if (!$file) {
-            throw ValidationException::create('That file no longer exists.');
+        if ($actionName === self::ACTION_ASSESS) {
+            $this->handleAssess($gridField, $arguments);
         }
+    }
 
-        if (!$file->canEdit()) {
-            throw ValidationException::create('You do not have permission to edit that file.');
-        }
+
+    /**
+     * @param array $arguments
+     * @throws ValidationException
+     */
+    private function handleReplace(GridField $gridField, array $arguments): void
+    {
+        $file = $this->requireEditableFile($arguments);
 
         $originalName = (string) $file->getFilename();
         $saving = $file->getWebpSaving();
@@ -155,5 +177,47 @@ class GridFieldWebpConvertAction extends AbstractGridFieldComponent implements
                 ),
                 'good'
             );
+    }
+
+
+    /**
+     * @param array $arguments
+     * @throws ValidationException
+     */
+    private function handleAssess(GridField $gridField, array $arguments): void
+    {
+        $file = $this->requireEditableFile($arguments);
+        $status = WebpConversionService::singleton()->assess($file);
+
+        $gridField->getForm()
+            ->sessionMessage(
+                sprintf(
+                    'Assessed %s: %s%s',
+                    $file->getFilename(),
+                    $status,
+                    $file->WebpNote ? ' — ' . $file->WebpNote : ''
+                ),
+                $status === WebpConversionExtension::STATUS_FAILED ? 'bad' : 'good'
+            );
+    }
+
+
+    /**
+     * @param array $arguments
+     * @throws ValidationException
+     */
+    private function requireEditableFile(array $arguments): File
+    {
+        $file = File::get_by_id((int) ($arguments['RecordID'] ?? 0));
+
+        if (!$file) {
+            throw ValidationException::create('That file no longer exists.');
+        }
+
+        if (!$file->canEdit()) {
+            throw ValidationException::create('You do not have permission to edit that file.');
+        }
+
+        return $file;
     }
 }
