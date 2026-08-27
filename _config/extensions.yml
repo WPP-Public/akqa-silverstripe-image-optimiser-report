@@ -1,0 +1,6 @@
+---
+Name: akqa-image-optimiser-extensions
+---
+SilverStripe\Assets\File:
+  extensions:
+    - Akqa\SilverStripe\ImageOptimiser\Extensions\WebpConversionExtension

@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" bootstrap="vendor/silverstripe/framework/tests/bootstrap.php" colors="true" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.5/phpunit.xsd">
+  <testsuite name="Default">
+    <directory>tests/</directory>
+  </testsuite>
+  <php>
+    <get name="flush" value="1"/>
+  </php>
+  <source>
+    <include>
+      <directory suffix=".php">src/</directory>
+    </include>
+    <exclude>
+      <directory suffix=".php">tests/</directory>
+    </exclude>
+  </source>
+</phpunit>

@@ -1,0 +1,17 @@
+---
+Name: akqa-image-optimiser-config
+---
+Akqa\SilverStripe\ImageOptimiser\Services\WebpConversionService:
+  # Encoder quality passed to Intervention Image.
+  quality: 85
+
+  # A WebP has to beat the PNG by at least this much to be worth replacing.
+  # Anything under this is marked Skipped and never offered in the report.
+  minimum_saving_percent: 5.0
+
+  # Files assessed per queued job run before it re-queues itself. One large PNG
+  # has to be fully decoded to be re-encoded, so keep this modest.
+  batch_size: 25
+
+  # Files at or below this size are skipped without conversion.
+  minimum_file_size: 10240

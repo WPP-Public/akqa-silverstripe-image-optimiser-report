@@ -1,0 +1,61 @@
+{
+    "name": "akqa/silverstripe-image-optimiser-report",
+    "description": "CMS report and tooling to assess and replace PNG assets with smaller WebP equivalents",
+    "type": "silverstripe-vendormodule",
+    "license": "BSD-3-Clause",
+    "keywords": [
+        "silverstripe",
+        "webp",
+        "images",
+        "optimisation",
+        "assets",
+        "reports"
+    ],
+    "homepage": "https://github.com/WPP-Public/akqa-silverstripe-image-optimiser-report",
+    "support": {
+        "issues": "https://github.com/WPP-Public/akqa-silverstripe-image-optimiser-report/issues"
+    },
+    "require": {
+        "php": "^8.3",
+        "silverstripe/framework": "^6",
+        "silverstripe/assets": "^3",
+        "silverstripe/reports": "^6",
+        "symbiote/silverstripe-queuedjobs": "^6",
+        "composer/installers": "^2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11",
+        "silverstripe/recipe-testing": "^4",
+        "silverstripe/cms": "^6",
+        "squizlabs/php_codesniffer": "^3.7"
+    },
+    "autoload": {
+        "psr-4": {
+            "Akqa\\SilverStripe\\ImageOptimiser\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Akqa\\SilverStripe\\ImageOptimiser\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.x-dev"
+        }
+    },
+    "scripts": {
+        "lint": "phpcs src/ tests/",
+        "lint-clean": "phpcbf src/ tests/",
+        "test": "phpunit"
+    },
+    "prefer-stable": true,
+    "minimum-stability": "dev",
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true,
+            "silverstripe/vendor-plugin": true,
+            "phpstan/extension-installer": true
+        }
+    }
+}
