@@ -2,7 +2,7 @@
     "name": "akqa/silverstripe-image-optimiser-report",
     "description": "CMS report and tooling to assess and replace PNG assets with smaller WebP equivalents",
     "type": "silverstripe-vendormodule",
-    "license": "BSD-3-Clause",
+    "license": "MIT",
     "keywords": [
         "silverstripe",
         "webp",
