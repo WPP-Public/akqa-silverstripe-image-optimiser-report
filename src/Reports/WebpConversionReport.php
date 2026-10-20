@@ -97,8 +97,10 @@ class WebpConversionReport extends Report
             ->filter('WebpStatus', $status);
 
         if ($filenameFilter !== '') {
-            $list = $list->filter([
-                'Filename:PartialMatch' => $this->convertWildcardSearchToSqlLike($filenameFilter),
+            $pattern = $this->convertWildcardSearchToSqlLike($filenameFilter);
+            $list = $list->filterAny([
+                'Filename:PartialMatch' => $pattern,
+                'Name:PartialMatch' => $pattern,
             ]);
         }
 
@@ -123,16 +125,15 @@ class WebpConversionReport extends Report
 
     private function convertWildcardSearchToSqlLike(string $filter): string
     {
-        $filter = str_replace(['\\', '/', ' '], ['\\\\', '\/', ''], $filter);
-        $filter = preg_replace('/\s+/', '', $filter);
-
         if ($filter === '') {
-            return '';
+            return '%';
         }
 
-        if (str_contains($filter, '*')) {
-            $filter = str_replace('*', '%', $filter);
-        } else {
+        $hasWildcard = str_contains($filter, '*');
+        $filter = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $filter);
+        $filter = str_replace('*', '%', $filter);
+
+        if (!$hasWildcard) {
             $filter = '%' . $filter . '%';
         }
 
