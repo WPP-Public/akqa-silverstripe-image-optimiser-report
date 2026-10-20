@@ -33,6 +33,11 @@ class WebpConversionService
     use Injectable;
 
     /**
+     * File extensions that are eligible for trial WebP conversion.
+     */
+    private static array $eligible_extensions = ['png', 'jpg', 'jpeg'];
+
+    /**
      * Quality passed to the Intervention Image encoder.
      */
     private static int $quality = 85;
@@ -54,11 +59,11 @@ class WebpConversionService
     private static int $minimum_file_size = 10240;
 
     /**
-     * PNG files that have never been assessed.
+     * Eligible image files that have never been assessed.
      */
     public function getUnassessedFiles(): DataList
     {
-        return $this->getPngFiles()
+        return $this->getEligibleFiles()
             ->filter('WebpStatus', WebpConversionExtension::STATUS_UNCHECKED);
     }
 
@@ -68,19 +73,48 @@ class WebpConversionService
      */
     public function getCandidates(): DataList
     {
-        return $this->getPngFiles()
+        return $this->getEligibleFiles()
             ->filter('WebpStatus', WebpConversionExtension::STATUS_CANDIDATE)
             ->sort('WebpSavingBytes', 'DESC');
     }
 
 
     /**
-     * All PNG files, regardless of assessment state.
+     * All eligible image files (PNG, JPG, JPEG), regardless of assessment state.
+     */
+    public function getEligibleFiles(): DataList
+    {
+        $extensions = array_map(
+            static fn (string $extension): string => '.' . strtolower($extension),
+            $this->getEligibleExtensions()
+        );
+
+        return File::get()->filter('Name:EndsWith:nocase', $extensions);
+    }
+
+
+    /**
+     * Lower-case list of file extensions allowed for WebP trial conversion.
+     */
+    private function getEligibleExtensions(): array
+    {
+        return array_map(
+            static fn (string $extension): string => strtolower($extension),
+            (array) static::config()->get('eligible_extensions')
+        );
+    }
+
+
+    /**
+     * Backwards-compatible alias for older callers. It now returns all eligible
+     * files — PNG, JPG, and JPEG — not just PNGs.
+     *
+     * @deprecated since 2.0.0, use getEligibleFiles() instead.
+     * @see getEligibleFiles()
      */
     public function getPngFiles(): DataList
     {
-        return File::get()
-            ->filter('Name:EndsWith:nocase', '.png');
+        return $this->getEligibleFiles();
     }
 
 
@@ -234,7 +268,9 @@ class WebpConversionService
      */
     public function getVariantURL(File $file): ?string
     {
-        if (!$file->exists() || strtolower((string) $file->getExtension()) !== 'png') {
+        $extensions = $this->getEligibleExtensions();
+
+        if (!$file->exists() || !in_array(strtolower((string) $file->getExtension()), $extensions, true)) {
             return null;
         }
 
