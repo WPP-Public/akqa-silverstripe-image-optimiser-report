@@ -90,10 +90,10 @@ class ConvertWebpCandidatesJob extends AbstractQueuedJob implements QueuedJob
                 if ($file->WebpStatus !== WebpConversionExtension::STATUS_CANDIDATE) {
                     $this->addMessage(sprintf('%s is no longer a candidate — skipping', $file->getFilename()));
                 } else {
+                    $savedBytes = (int) $file->WebpSavingBytes;
                     $replaced = WebpConversionService::singleton()->replace($file);
 
                     if ($replaced) {
-                        $savedBytes = (int) $file->getWebpSaving();
                         $this->convertedBytes = (int) $this->convertedBytes + $savedBytes;
                         $this->addMessage(sprintf(
                             'Converted %s — saved %s',
