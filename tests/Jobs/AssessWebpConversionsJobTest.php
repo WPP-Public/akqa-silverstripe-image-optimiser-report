@@ -6,6 +6,7 @@ namespace Akqa\SilverStripe\ImageOptimiser\Tests\Jobs;
 
 use Akqa\SilverStripe\ImageOptimiser\Extensions\WebpConversionExtension;
 use Akqa\SilverStripe\ImageOptimiser\Jobs\AssessWebpConversionsJob;
+use Akqa\SilverStripe\ImageOptimiser\Jobs\ConvertWebpCandidatesJob;
 use Akqa\SilverStripe\ImageOptimiser\Services\WebpConversionService;
 use SilverStripe\Assets\Dev\TestAssetStore;
 use SilverStripe\Assets\Image;
@@ -151,5 +152,25 @@ class AssessWebpConversionsJobTest extends SapphireTest
     public function testJobHasATitle(): void
     {
         $this->assertNotEmpty((new AssessWebpConversionsJob())->getTitle());
+    }
+
+
+    public function testBulkConversionJobConvertsCandidateFiles(): void
+    {
+        $first = $this->createNoisyPng('bulk-one.png');
+        $second = $this->createNoisyPng('bulk-two.png');
+
+        WebpConversionService::singleton()->assess($first);
+        WebpConversionService::singleton()->assess($second);
+
+        $job = new ConvertWebpCandidatesJob();
+        $job->setup();
+        $job->process();
+
+        $this->assertTrue($job->jobFinished());
+        $this->assertSame(
+            2,
+            WebpConversionService::singleton()->getPngFiles()->filter('WebpStatus', WebpConversionExtension::STATUS_CONVERTED)->count()
+        );
     }
 }

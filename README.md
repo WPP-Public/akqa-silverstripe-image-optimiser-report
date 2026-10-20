@@ -20,6 +20,12 @@ Run `dev/build` after installing so the WebP assessment columns are added to
    sake tasks:WebpConversionTask --queue
    ```
 
+   Or queue the bulk conversion of every currently worthwhile candidate:
+
+   ```bash
+   sake tasks:WebpConversionTask --convert
+   ```
+
    Or assess a small batch inline:
 
    ```bash
@@ -27,8 +33,8 @@ Run `dev/build` after installing so the WebP assessment columns are added to
    ```
 
 2. Open **Reports → Image conversion report** in the CMS.
-3. Use **Queue assessment** to process files in the background, or filter to
-   **Not yet assessed** and assess files one at a time.
+3. Use **Queue assessment** or **Queue conversion** to process files in the
+   background, or filter to **Not yet assessed** and assess files one at a time.
 4. Preview PNG vs WebP, then use **Replace with WebP** on candidates you want
    to swap. The `File` record ID is preserved so existing relations follow.
 
