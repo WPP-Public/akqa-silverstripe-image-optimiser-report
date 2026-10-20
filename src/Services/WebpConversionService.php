@@ -85,7 +85,7 @@ class WebpConversionService
     public function getEligibleFiles(): DataList
     {
         $extensions = array_map(
-            static fn (string $extension): string => '.' . strtolower($extension),
+            static fn (string $extension): string => '.' . $extension,
             $this->getEligibleExtensions()
         );
 
@@ -98,10 +98,10 @@ class WebpConversionService
      */
     private function getEligibleExtensions(): array
     {
-        return array_map(
-            static fn (string $extension): string => strtolower($extension),
+        return array_values(array_filter(array_map(
+            static fn (string $extension): string => strtolower(ltrim($extension, '.')),
             (array) static::config()->get('eligible_extensions')
-        );
+        )));
     }
 
 
