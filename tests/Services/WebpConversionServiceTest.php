@@ -41,7 +41,7 @@ class WebpConversionServiceTest extends SapphireTest
      * WebP can, so this is reliably a worthwhile conversion. A smooth gradient
      * would not be — PNG filters handle those better than lossy WebP does.
      */
-    private function createNoisyPng(string $name = 'noisy.png', int $size = 400): Image
+    private function createNoisyImage(string $name = 'noisy.png', int $size = 400): Image
     {
         $image = imagecreatetruecolor($size, $size);
 
@@ -61,7 +61,17 @@ class WebpConversionServiceTest extends SapphireTest
         }
 
         ob_start();
-        imagepng($image, null, 9);
+
+        $extension = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+        if ($extension === 'jpg' || $extension === 'jpeg') {
+            imagejpeg($image, null, 90);
+        } elseif ($extension === 'png') {
+            imagepng($image, null, 9);
+        } else {
+            throw new InvalidArgumentException(sprintf('Unsupported test image extension: %s', $extension ?: '(none)'));
+        }
+
         $data = (string) ob_get_clean();
 
         $file = Image::create();
@@ -75,7 +85,7 @@ class WebpConversionServiceTest extends SapphireTest
     public function testGetWebpFilenameSwapsTheExtension(): void
     {
         $service = WebpConversionService::singleton();
-        $file = $this->createNoisyPng('swap-me.png');
+        $file = $this->createNoisyImage('swap-me.png');
 
         $this->assertStringEndsWith('swap-me.webp', $service->getWebpFilename($file));
     }
@@ -85,7 +95,7 @@ class WebpConversionServiceTest extends SapphireTest
     {
         Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 10_000_000);
 
-        $file = $this->createNoisyPng('tiny.png');
+        $file = $this->createNoisyImage('tiny.png');
         $status = WebpConversionService::singleton()->assess($file);
 
         $this->assertSame(WebpConversionExtension::STATUS_SKIPPED, $status);
@@ -99,7 +109,7 @@ class WebpConversionServiceTest extends SapphireTest
         Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 0);
         Config::modify()->set(WebpConversionService::class, 'minimum_saving_percent', 5.0);
 
-        $file = $this->createNoisyPng('candidate.png');
+        $file = $this->createNoisyImage('candidate.png');
         $status = WebpConversionService::singleton()->assess($file);
 
         $this->assertSame(WebpConversionExtension::STATUS_CANDIDATE, $status);
@@ -128,7 +138,7 @@ class WebpConversionServiceTest extends SapphireTest
         Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 0);
         Config::modify()->set(WebpConversionService::class, 'minimum_saving_percent', 99.9);
 
-        $file = $this->createNoisyPng('below-threshold.png');
+        $file = $this->createNoisyImage('below-threshold.png');
         $status = WebpConversionService::singleton()->assess($file);
 
         $this->assertSame(WebpConversionExtension::STATUS_SKIPPED, $status);
@@ -154,7 +164,7 @@ class WebpConversionServiceTest extends SapphireTest
     {
         Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 0);
 
-        $file = $this->createNoisyPng('replace-me.png');
+        $file = $this->createNoisyImage('replace-me.png');
         $originalID = $file->ID;
         $originalSize = (int) $file->getAbsoluteSize();
 
@@ -178,7 +188,7 @@ class WebpConversionServiceTest extends SapphireTest
     {
         Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 0);
 
-        $file = $this->createNoisyPng('once-only.png');
+        $file = $this->createNoisyImage('once-only.png');
         WebpConversionService::singleton()->assess($file);
 
         $this->assertCount(1, WebpConversionService::singleton()->getCandidates()->column('ID'));
@@ -193,18 +203,34 @@ class WebpConversionServiceTest extends SapphireTest
     }
 
 
-    public function testGetPngFilesIgnoresOtherFormats(): void
+    public function testGetEligibleFilesIgnoresOtherFormats(): void
     {
-        $png = $this->createNoisyPng('included.png');
+        $png = $this->createNoisyImage('included.png');
+        $jpg = $this->createNoisyImage('included.jpg');
 
         $other = File::create();
         $other->setFromString('not an image', 'excluded.txt');
         $other->write();
 
-        $ids = WebpConversionService::singleton()->getPngFiles()->column('ID');
+        $ids = WebpConversionService::singleton()->getEligibleFiles()->column('ID');
 
         $this->assertContains($png->ID, $ids);
+        $this->assertContains($jpg->ID, $ids);
         $this->assertNotContains($other->ID, $ids);
+    }
+
+
+    public function testJpgIsEligibleForWebpAssessment(): void
+    {
+        Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 0);
+
+        $file = $this->createNoisyImage('candidate.jpg');
+        $status = WebpConversionService::singleton()->assess($file);
+
+        $this->assertSame(WebpConversionExtension::STATUS_CANDIDATE, $status);
+        $this->assertGreaterThan(0, (int) $file->WebpOriginalSize);
+        $this->assertGreaterThan(0, (int) $file->WebpConvertedSize);
+        $this->assertStringEndsWith('candidate.webp', WebpConversionService::singleton()->getWebpFilename($file));
     }
 
 
@@ -212,8 +238,8 @@ class WebpConversionServiceTest extends SapphireTest
     {
         Config::modify()->set(WebpConversionService::class, 'minimum_file_size', 0);
 
-        $this->createNoisyPng('one.png');
-        $two = $this->createNoisyPng('two.png');
+        $this->createNoisyImage('one.png');
+        $two = $this->createNoisyImage('two.png');
 
         $service = WebpConversionService::singleton();
         $this->assertCount(2, $service->getUnassessedFiles()->column('ID'));
