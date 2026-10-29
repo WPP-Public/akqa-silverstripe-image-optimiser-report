@@ -38,7 +38,12 @@ class WebpConversionTask extends BuildTask
     {
         return [
             new InputOption('queue', null, InputOption::VALUE_NONE, 'Queue the assessment job'),
-            new InputOption('convert', null, InputOption::VALUE_NONE, 'Queue the bulk conversion job for all candidate files'),
+            new InputOption(
+                'convert',
+                null,
+                InputOption::VALUE_NONE,
+                'Queue the bulk conversion job for all candidate files'
+            ),
             new InputOption('assess', null, InputOption::VALUE_NONE, 'Assess a batch inline instead of queueing'),
             new InputOption('limit', null, InputOption::VALUE_OPTIONAL, 'How many files to assess inline', 10),
             new InputOption('reset', null, InputOption::VALUE_NONE, 'Clear all previous assessments and start again'),
@@ -72,7 +77,11 @@ class WebpConversionTask extends BuildTask
             }
 
             QueuedJobService::singleton()->queueJob(Injector::inst()->create(ConvertWebpCandidatesJob::class));
-            $output->writeln(sprintf('Queued the conversion job for %d candidate file%s.', $candidates, $candidates === 1 ? '' : 's'));
+            $output->writeln(sprintf(
+                'Queued the conversion job for %d candidate file%s.',
+                $candidates,
+                $candidates === 1 ? '' : 's'
+            ));
 
             return 0;
         }
@@ -83,7 +92,10 @@ class WebpConversionTask extends BuildTask
             return 0;
         }
 
-        $output->writeln('Nothing to do — pass --queue to assess files, --convert to replace candidates, or --assess for an inline batch.');
+        $output->writeln(
+            'Nothing to do — pass --queue to assess files, --convert to replace candidates, '
+            . 'or --assess for an inline batch.'
+        );
 
         return 0;
     }

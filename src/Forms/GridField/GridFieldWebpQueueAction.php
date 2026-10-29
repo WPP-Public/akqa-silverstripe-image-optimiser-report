@@ -97,7 +97,9 @@ JS
             $convertButton->setTitle('WebP job running…');
         }
 
-        $fragments['buttons-before-left'] = $assessmentButton->Field()->forTemplate() . ' ' . $convertButton->Field()->forTemplate();
+        $fragments['buttons-before-left'] = $assessmentButton->Field()->forTemplate()
+            . ' '
+            . $convertButton->Field()->forTemplate();
 
         return $fragments;
     }
@@ -196,7 +198,9 @@ JS
     /**
      * Whether either queued WebP job is currently waiting or running.
      *
-     * @deprecated 2.1.0 This method now checks both job types and therefore has broader semantics than its original assessment-only name; migrate to isAnyWebpJobRunning().
+     * @deprecated 2.1.0 This method now checks both job types and therefore has broader
+     *             semantics than its original assessment-only name; migrate to
+     *             isAnyWebpJobRunning().
      * @see isAnyWebpJobRunning()
      */
     public function isAssessmentRunning(): bool

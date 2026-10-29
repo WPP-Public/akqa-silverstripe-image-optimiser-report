@@ -145,7 +145,7 @@ class ConvertWebpCandidatesJob extends AbstractQueuedJob implements QueuedJob
 
         $remaining = WebpConversionService::singleton()->getCandidates()->count();
 
-        if ($remaining > 0 && !QueuedJobDescriptor::get()->filter([
+        $alreadyQueued = QueuedJobDescriptor::get()->filter([
             'Implementation' => self::class,
             'JobStatus' => [
                 QueuedJob::STATUS_NEW,
@@ -153,7 +153,9 @@ class ConvertWebpCandidatesJob extends AbstractQueuedJob implements QueuedJob
                 QueuedJob::STATUS_RUN,
                 QueuedJob::STATUS_WAIT,
             ],
-        ])->exists()) {
+        ])->exists();
+
+        if ($remaining > 0 && !$alreadyQueued) {
             $this->addMessage(sprintf('%d files remaining - creating a new job.', $remaining));
             QueuedJobService::singleton()->queueJob(Injector::inst()->create(self::class));
         }

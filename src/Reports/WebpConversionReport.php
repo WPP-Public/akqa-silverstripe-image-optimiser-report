@@ -95,7 +95,7 @@ class WebpConversionReport extends Report
         if ($status === WebpConversionExtension::STATUS_CANDIDATE) {
             $list = $list->sort('WebpSavingBytes', 'DESC');
         } else {
-            $list = $list->sort('Filename', 'ASC');
+            $list = $list->sort('FileFilename', 'ASC');
         }
 
         if ($sort) {
