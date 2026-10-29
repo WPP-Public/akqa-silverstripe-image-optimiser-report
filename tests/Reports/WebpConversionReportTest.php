@@ -188,6 +188,33 @@ class WebpConversionReportTest extends SapphireTest
     }
 
 
+    public function testReportCanFilterByWildcardFileOrFolderName(): void
+    {
+        $candidate = $this->createNoisyPng('images/candidate.png');
+        WebpConversionService::singleton()->assess($candidate);
+
+        $other = $this->createNoisyPng('assets/other.png');
+        WebpConversionService::singleton()->assess($other);
+
+        $report = new WebpConversionReport();
+
+        $matchingIDs = $report->sourceRecords([
+            'WebpStatus' => WebpConversionExtension::STATUS_CANDIDATE,
+            'FilenameFilter' => 'images/*',
+        ])->column('ID');
+
+        $this->assertContains($candidate->ID, $matchingIDs);
+        $this->assertNotContains($other->ID, $matchingIDs);
+
+        $folderMatches = $report->sourceRecords([
+            'WebpStatus' => WebpConversionExtension::STATUS_CANDIDATE,
+            'FilenameFilter' => '*candidate*',
+        ])->column('ID');
+
+        $this->assertContains($candidate->ID, $folderMatches);
+    }
+
+
     public function testConvertActionRendersOnlyForCandidates(): void
     {
         $this->logInWithPermission('ADMIN');

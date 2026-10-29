@@ -13,6 +13,7 @@ use SilverStripe\Core\Convert;
 use SilverStripe\Forms\DropdownField;
 use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\GridField\GridField;
+use SilverStripe\Forms\TextField;
 use SilverStripe\Forms\GridField\GridFieldButtonRow;
 use SilverStripe\Forms\GridField\GridFieldConfig;
 use SilverStripe\Forms\GridField\GridFieldDataColumns;
@@ -63,6 +64,10 @@ class WebpConversionReport extends Report
     public function parameterFields(): FieldList
     {
         return FieldList::create(
+            TextField::create(
+                'FilenameFilter',
+                'Search'
+            )->setDescription('Wildcard search for file or folder names like "images/*" or "*report*.png"'),
             DropdownField::create(
                 'WebpStatus',
                 'Status',
@@ -85,10 +90,19 @@ class WebpConversionReport extends Report
     public function sourceRecords($params = [], $sort = null, $limit = null): SS_List
     {
         $status = $params['WebpStatus'] ?? WebpConversionExtension::STATUS_CANDIDATE;
+        $filenameFilter = trim((string) ($params['FilenameFilter'] ?? ''));
 
         $list = WebpConversionService::singleton()
             ->getPngFiles()
             ->filter('WebpStatus', $status);
+
+        if ($filenameFilter !== '') {
+            $pattern = $this->convertWildcardSearchToSqlLike($filenameFilter);
+            $list = $list->filterAny([
+                'Filename:PartialMatch' => $pattern,
+                'Name:PartialMatch' => $pattern,
+            ]);
+        }
 
         // Biggest wins first — the default sort only makes sense for rows that
         // actually have a measured saving.
@@ -107,6 +121,23 @@ class WebpConversionReport extends Report
         }
 
         return $list;
+    }
+
+    private function convertWildcardSearchToSqlLike(string $filter): string
+    {
+        if ($filter === '') {
+            return '%';
+        }
+
+        $hasWildcard = str_contains($filter, '*');
+        $filter = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $filter);
+        $filter = str_replace('*', '%', $filter);
+
+        if (!$hasWildcard) {
+            $filter = '%' . $filter . '%';
+        }
+
+        return $filter;
     }
 
 
