@@ -43,6 +43,10 @@ class WebpConversionExtension extends Extension
         'WebpConvertedAt' => 'Datetime',
     ];
 
+    private static array $defaults = [
+        'WebpStatus' => self::STATUS_UNCHECKED,
+    ];
+
     private static array $indexes = [
         'WebpStatus' => true,
         'WebpSavingBytes' => true,

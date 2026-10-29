@@ -6,11 +6,13 @@ namespace Akqa\SilverStripe\ImageOptimiser\Tests\Jobs;
 
 use Akqa\SilverStripe\ImageOptimiser\Extensions\WebpConversionExtension;
 use Akqa\SilverStripe\ImageOptimiser\Jobs\AssessWebpConversionsJob;
+use Akqa\SilverStripe\ImageOptimiser\Jobs\ConvertWebpCandidatesJob;
 use Akqa\SilverStripe\ImageOptimiser\Services\WebpConversionService;
 use SilverStripe\Assets\Dev\TestAssetStore;
 use SilverStripe\Assets\Image;
 use SilverStripe\Core\Config\Config;
 use SilverStripe\Dev\SapphireTest;
+use Symbiote\QueuedJobs\Services\AbstractQueuedJob;
 
 class AssessWebpConversionsJobTest extends SapphireTest
 {
@@ -67,7 +69,7 @@ class AssessWebpConversionsJobTest extends SapphireTest
      * Drive the job the way the queue does: setup once, then process until it
      * reports itself complete.
      */
-    private function runJob(AssessWebpConversionsJob $job): void
+    private function runJob(AbstractQueuedJob $job): void
     {
         $job->setup();
 
@@ -151,5 +153,22 @@ class AssessWebpConversionsJobTest extends SapphireTest
     public function testJobHasATitle(): void
     {
         $this->assertNotEmpty((new AssessWebpConversionsJob())->getTitle());
+    }
+
+
+    public function testBulkConversionJobConvertsCandidateFiles(): void
+    {
+        $first = $this->createNoisyPng('bulk-one.png');
+        $second = $this->createNoisyPng('bulk-two.png');
+
+        WebpConversionService::singleton()->assess($first);
+        WebpConversionService::singleton()->assess($second);
+
+        $job = new ConvertWebpCandidatesJob();
+        $this->runJob($job);
+
+        $this->assertTrue($job->jobFinished());
+        $this->assertSame(WebpConversionExtension::STATUS_CONVERTED, Image::get_by_id($first->ID)->WebpStatus);
+        $this->assertSame(WebpConversionExtension::STATUS_CONVERTED, Image::get_by_id($second->ID)->WebpStatus);
     }
 }

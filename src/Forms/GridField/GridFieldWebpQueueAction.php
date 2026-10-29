@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Akqa\SilverStripe\ImageOptimiser\Forms\GridField;
 
 use Akqa\SilverStripe\ImageOptimiser\Jobs\AssessWebpConversionsJob;
+use Akqa\SilverStripe\ImageOptimiser\Jobs\ConvertWebpCandidatesJob;
+use Akqa\SilverStripe\ImageOptimiser\Services\WebpConversionService;
 use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Core\Validation\ValidationException;
 use SilverStripe\Forms\GridField\AbstractGridFieldComponent;
@@ -27,6 +29,8 @@ class GridFieldWebpQueueAction extends AbstractGridFieldComponent implements
 {
     private const ACTION = 'queuewebpassessment';
 
+    private const ACTION_BATCH_CONVERT = 'queuewebpconversion';
+
     /**
      * {@inheritdoc}
      */
@@ -34,7 +38,7 @@ class GridFieldWebpQueueAction extends AbstractGridFieldComponent implements
     {
         $fragments = [];
 
-        if ($this->isAssessmentRunning()) {
+        if ($this->isAnyWebpJobRunning()) {
             $fragments['buttons-before-right'] = $this->renderProgressIndicator();
             Requirements::customCSS(
                 '.webp-assessment-progress .font-icon-spinner {'
@@ -58,7 +62,7 @@ JS
             );
         }
 
-        $button = GridField_FormAction::create(
+        $assessmentButton = GridField_FormAction::create(
             $gridField,
             'QueueWebpAssessment',
             'Queue assessment',
@@ -72,12 +76,30 @@ JS
             )
             ->setDescription('Queue a background job to assess unassessed PNG files');
 
-        if ($this->isAssessmentRunning()) {
-            $button->setDisabled(true);
-            $button->setTitle('Assessment running…');
+        $convertButton = GridField_FormAction::create(
+            $gridField,
+            'QueueWebpConversion',
+            'Queue conversion',
+            self::ACTION_BATCH_CONVERT,
+            []
+        )
+            ->addExtraClass('btn btn-primary btn-sm')
+            ->setAttribute(
+                'aria-label',
+                'Queue a background job to convert all PNG files worth converting to WebP'
+            )
+            ->setDescription('Queue a background job to replace every candidate PNG file with a WebP');
+
+        if ($this->isAnyWebpJobRunning()) {
+            $assessmentButton->setDisabled(true);
+            $assessmentButton->setTitle('WebP job running…');
+            $convertButton->setDisabled(true);
+            $convertButton->setTitle('WebP job running…');
         }
 
-        $fragments['buttons-before-left'] = $button->Field()->forTemplate();
+        $fragments['buttons-before-left'] = $assessmentButton->Field()->forTemplate()
+            . ' '
+            . $convertButton->Field()->forTemplate();
 
         return $fragments;
     }
@@ -88,7 +110,7 @@ JS
      */
     public function getActions($gridField)
     {
-        return [self::ACTION];
+        return [self::ACTION, self::ACTION_BATCH_CONVERT];
     }
 
 
@@ -99,13 +121,24 @@ JS
      */
     public function handleAction(GridField $gridField, $actionName, $arguments, $data)
     {
-        if ($actionName !== self::ACTION) {
+        if ($actionName === self::ACTION) {
+            $this->handleAssessmentQueue($gridField);
             return;
         }
 
-        if ($this->isAssessmentRunning()) {
+        if ($actionName === self::ACTION_BATCH_CONVERT) {
+            $this->handleConversionQueue($gridField);
+        }
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function handleAssessmentQueue(GridField $gridField): void
+    {
+        if ($this->isAnyWebpJobRunning()) {
             $gridField->getForm()->sessionMessage(
-                'An assessment job is already running.',
+                'An assessment or conversion job is already running.',
                 'warning'
             );
 
@@ -122,15 +155,70 @@ JS
         );
     }
 
+    /**
+     * @throws ValidationException
+     */
+    private function handleConversionQueue(GridField $gridField): void
+    {
+        if ($this->isAnyWebpJobRunning()) {
+            $gridField->getForm()->sessionMessage(
+                'An assessment or conversion job is already running.',
+                'warning'
+            );
+
+            return;
+        }
+
+        $candidateCount = WebpConversionService::singleton()->getCandidates()->count();
+
+        if ($candidateCount <= 0) {
+            $gridField->getForm()->sessionMessage(
+                'There are no PNG files worth converting right now.',
+                'warning'
+            );
+
+            return;
+        }
+
+        QueuedJobService::singleton()->queueJob(
+            Injector::inst()->create(ConvertWebpCandidatesJob::class)
+        );
+
+        $gridField->getForm()->sessionMessage(
+            sprintf(
+                'Queued conversion of %d PNG file%s worth converting.',
+                $candidateCount,
+                $candidateCount === 1 ? '' : 's'
+            ),
+            'good'
+        );
+    }
+
 
     /**
-     * Whether an AssessWebpConversionsJob is currently waiting or running.
+     * Whether either queued WebP job is currently waiting or running.
+     *
+     * @deprecated 2.1.0 This method now checks both job types and therefore has broader
+     *             semantics than its original assessment-only name; migrate to
+     *             isAnyWebpJobRunning().
+     * @see isAnyWebpJobRunning()
      */
     public function isAssessmentRunning(): bool
     {
+        return $this->isAnyWebpJobRunning();
+    }
+
+    /**
+     * Whether either queued WebP job is currently waiting or running.
+     */
+    public function isAnyWebpJobRunning(): bool
+    {
         return QueuedJobDescriptor::get()
             ->filter([
-                'Implementation' => AssessWebpConversionsJob::class,
+                'Implementation' => [
+                    AssessWebpConversionsJob::class,
+                    ConvertWebpCandidatesJob::class,
+                ],
                 'JobStatus' => [
                     QueuedJob::STATUS_NEW,
                     QueuedJob::STATUS_INIT,

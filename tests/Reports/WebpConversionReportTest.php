@@ -313,6 +313,30 @@ class WebpConversionReportTest extends SapphireTest
     }
 
 
+    public function testQueueActionQueuesBulkConversionJobForCandidates(): void
+    {
+        $this->logInWithPermission('ADMIN');
+
+        $candidate = $this->createNoisyPng('queue-bulk-convert.png');
+        WebpConversionService::singleton()->assess($candidate);
+
+        $grid = $this->buildGrid();
+
+        (new GridFieldWebpQueueAction())->handleAction(
+            $grid,
+            'queuewebpconversion',
+            [],
+            []
+        );
+
+        $this->assertTrue(
+            QueuedJobDescriptor::get()
+                ->filter('Implementation', 'Akqa\\SilverStripe\\ImageOptimiser\\Jobs\\ConvertWebpCandidatesJob')
+                ->exists()
+        );
+    }
+
+
     public function testReportIsViewableByAdmin(): void
     {
         $admin = $this->logInWithPermission('ADMIN');
